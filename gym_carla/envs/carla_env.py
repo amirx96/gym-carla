@@ -52,8 +52,8 @@ class CarlaEnv(gym.Env):
       self.pixor = False
 
     # Destination
-    if params['task_mode'] == 'roundabout':
-      self.dests = [[4.46, -61.46, 0], [-49.53, -2.89, 0], [-6.48, 55.47, 0], [35.96, 3.33, 0]]
+    if params['task_mode'] == 'acc_1':
+      self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
     else:
       self.dests = None
 
@@ -85,11 +85,14 @@ class CarlaEnv(gym.Env):
 
     # Connect to carla server and get world object
     print('connecting to Carla server...')
-    client = carla.Client('localhost', params['port'])
-    client.set_timeout(10.0)
-    self.world = client.load_world(params['town'])
+    self.client = carla.Client('localhost', params['port'])
+    self.client.set_timeout(10.0)
+    self.world = self.client.load_world(params['town'])
     print('Carla server connected!')
-
+    self.map = self.world.get_map()
+    self.tm = self.client.get_trafficmanager(int(8000))
+    self.tm_port = self.tm.get_port()
+    #print('Traffic Manager Port ' + self.tm_port)
     # Set weather
     self.world.set_weather(carla.WeatherParameters.ClearNoon)
 
@@ -173,17 +176,17 @@ class CarlaEnv(gym.Env):
         count -= 1
 
     # Spawn pedestrians
-    random.shuffle(self.walker_spawn_points)
-    count = self.number_of_walkers
-    if count > 0:
-      for spawn_point in self.walker_spawn_points:
-        if self._try_spawn_random_walker_at(spawn_point):
-          count -= 1
-        if count <= 0:
-          break
-    while count > 0:
-      if self._try_spawn_random_walker_at(random.choice(self.walker_spawn_points)):
-        count -= 1
+    # random.shuffle(self.walker_spawn_points)
+    # count = self.number_of_walkers
+    # if count > 0:
+    #   for spawn_point in self.walker_spawn_points:
+    #     if self._try_spawn_random_walker_at(spawn_point):
+    #       count -= 1
+    #     if count <= 0:
+    #       break
+    # while count > 0:
+    #   if self._try_spawn_random_walker_at(random.choice(self.walker_spawn_points)):
+    #     count -= 1
 
     # Get actors polygon list
     self.vehicle_polygons = []
@@ -199,15 +202,25 @@ class CarlaEnv(gym.Env):
       if ego_spawn_times > self.max_ego_spawn_times:
         self.reset()
 
-      if self.task_mode == 'random':
-        transform = random.choice(self.vehicle_spawn_points)
-      if self.task_mode == 'roundabout':
-        self.start=[52.1+np.random.uniform(-5,5),-4.2, 178.66] # random
-        # self.start=[52.1,-4.2, 178.66] # static
-        transform = set_carla_transform(self.start)
+      # if self.task_mode == 'random':
+      #   transform = random.choice(self.vehicle_spawn_points)
+      # if self.task_mode == 'roundabout':
+      #   self.start=[52.1+np.random.uniform(-5,5),-4.2, 178.66] # random
+      #   # self.start=[52.1,-4.2, 178.66] # static
+      #   transform = set_carla_transform(self.start)
+
+      if self.task_mode == 'acc_1':
+        #location = carla.Location(x=21.2,y=52.4,z=0.0)
+        #transform = set_carla_transform(self.start)
+        #wpt1 = self.map.get_waypoint(location,project_to_road=True,lane_type=carla.LaneType.Driving)
+        wpt1 = get_waypoint_for_ego_spawn(road_id=39,lane_id=-5,s=0,map=self.map)
+        transform = wpt1.transform
+        transform.location.z += 2.0
+        # transform = random.choice(self.vehicle_spawn_points)
       if self._try_spawn_ego_vehicle_at(transform):
         break
       else:
+        print('trying to spawn %d' % ego_spawn_times)
         ego_spawn_times += 1
         time.sleep(0.1)
 
@@ -273,7 +286,7 @@ class CarlaEnv(gym.Env):
 
     # Apply control
     act = carla.VehicleControl(throttle=float(throttle), steer=float(-steer), brake=float(brake))
-    self.ego.apply_control(act)
+    #self.ego.apply_control(act)
 
     self.world.tick()
 
@@ -414,6 +427,7 @@ class CarlaEnv(gym.Env):
         continue
       else:
         overlap = True
+        print('overlapping vehicle when trying to spawn')
         break
 
     if not overlap:
@@ -421,8 +435,14 @@ class CarlaEnv(gym.Env):
 
     if vehicle is not None:
       self.ego=vehicle
+
+      batch = []
+      batch.append(carla.command.SetAutopilot(self.ego,True))
+      self.client.apply_batch_sync(batch)
+
+
       return True
-      
+    print ('could not spawn vehicle')
     return False
 
   def _get_actor_polygons(self, filt):
