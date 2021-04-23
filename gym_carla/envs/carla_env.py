@@ -155,17 +155,31 @@ class CarlaEnv(gym.Env):
     self._set_synchronous_mode(False)
 
     # Spawn surrounding vehicles
-    random.shuffle(self.vehicle_spawn_points)
+    # random.shuffle(self.vehicle_spawn_points)
+    # count = self.number_of_vehicles
+    # if count > 0:
+    #   for spawn_point in self.vehicle_spawn_points:
+    #     if self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=[4]):
+    #       count -= 1
+    #     if count <= 0:
+    #       break
+    # while count > 0:
+    #   if self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4]):
+    #     count -= 1
+
+    # Spawn vehicles in same lane as ego vehicle and ahead
+    ego_vehicle_traffic_spawns = get_spawn_points_for_traffic(40,-5,self.map,self.number_of_vehicles)
+    random.shuffle(ego_vehicle_traffic_spawns)
     count = self.number_of_vehicles
     if count > 0:
-      for spawn_point in self.vehicle_spawn_points:
+      for spawn_point in ego_vehicle_traffic_spawns:
         if self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=[4]):
           count -= 1
         if count <= 0:
           break
-    while count > 0:
-      if self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4]):
-        count -= 1
+    # while count > 0:
+    #   if self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4]):
+    #     count -= 1
 
 
 
@@ -343,7 +357,10 @@ class CarlaEnv(gym.Env):
     blueprint.set_attribute('role_name', 'autopilot')
     vehicle = self.world.try_spawn_actor(blueprint, transform)
     if vehicle is not None:
-      vehicle.set_autopilot()
+      #vehicle.set_autopilot()
+      batch = []
+      batch.append(carla.command.SetAutopilot(vehicle,True))
+      self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
       return True
     return False
 
@@ -404,7 +421,7 @@ class CarlaEnv(gym.Env):
       batch = []
       batch.append(carla.command.SetAutopilot(self.ego,True))
       self.client.apply_batch_sync(batch)
-
+      self.tm.vehicle_percentage_speed_difference(self.ego,-20)
 
       return True
     print ('could not spawn vehicle')
