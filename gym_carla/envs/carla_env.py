@@ -53,7 +53,7 @@ class CarlaEnv(gym.Env):
 
     # Destination
     if params['task_mode'] == 'acc_1':
-      self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
+      self.dests = None #[[592.1,244.7,0]] # stopping condition in Town 06
     else:
       self.dests = None
 
@@ -421,7 +421,10 @@ class CarlaEnv(gym.Env):
       batch = []
       batch.append(carla.command.SetAutopilot(self.ego,True))
       self.client.apply_batch_sync(batch)
-      self.tm.vehicle_percentage_speed_difference(self.ego,0)
+      self.tm.vehicle_percentage_speed_difference(self.ego,-30)
+      #self.tm.distance_to_leading_vehicle(self.ego,20.0)
+      self.tm.set_global_distance_to_leading_vehicle(0.0)
+      self.tm.auto_lane_change(self.ego,False)
 
       return True
     print ('could not spawn vehicle')
