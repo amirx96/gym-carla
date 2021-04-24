@@ -421,7 +421,7 @@ class CarlaEnv(gym.Env):
       batch = []
       batch.append(carla.command.SetAutopilot(self.ego,True))
       self.client.apply_batch_sync(batch)
-      self.tm.vehicle_percentage_speed_difference(self.ego,-20)
+      self.tm.vehicle_percentage_speed_difference(self.ego,0)
 
       return True
     print ('could not spawn vehicle')
@@ -624,7 +624,7 @@ class CarlaEnv(gym.Env):
     # If out of lane
     dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
     if abs(dis) > self.out_lane_thres:
-      return True
+      return False#True
 
     return False
 
