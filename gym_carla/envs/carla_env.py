@@ -471,17 +471,31 @@ class CarlaEnv(gym.Env):
       np.array(np.array([np.cos(ego_yaw), np.sin(ego_yaw)]))))
     v = self.ego.get_velocity()
     speed = np.sqrt(v.x**2 + v.y**2)
+
+
+    lead_vehicle = None
+    if len(self.vehicle_hazards) > 0:
+      dist_to_lead= 100
+      for i in range(len(self.vehicle_hazards)):
+        hazard_loc = self.vehicle_hazards[i].get_transform()
+        dist_to_lead_ = ( (hazard_loc.location.x - ego_x)**2 + (hazard_loc.location.y - ego_y)**2)**(1/2)
+        if dist_to_lead_ < dist_to_lead:
+          dist_to_lead = dist_to_lead_
+          lead_vehicle = self.vehicle_hazards[i]
+    else:
+      dist_to_lead = -1
+
+    if lead_vehicle is not None:
+      lead_v = lead_vehicle.get_velocity()
+      lead_speed = np.sqrt(lead_v.x**2 + lead_v.y**2)
+    else:
+      lead_speed = -1
+
+    
     state = np.array([lateral_dis, - delta_yaw, speed])
     ## Get leading vehicle info
     
-    if len(self.vehicle_hazards) > 0:
-      dist_to_hazard = 100
-      for i in range(len(self.vehicle_hazards)):
-        hazard_loc = self.vehicle_hazards[i].get_transform()
-        dist_to_hazard_ = ( (hazard_loc.location.x - ego_x)**2 + (hazard_loc.location.y - ego_y)**2)**(1/2)
-        dist_to_hazard = dist_to_hazard_ if dist_to_hazard_ < dist_to_hazard else dist_to_hazard
-    else:
-      dist_to_hazard = -1
+
 
 
     ## Display camera image
@@ -496,8 +510,8 @@ class CarlaEnv(gym.Env):
 
     ## Display info statistics
     self.display.blit(self.pyfont.render('speed ' + str(round(speed,1)) + ' m/s', True, ( 255, 0, 0)),(self.display_size*1,80))
-    self.display.blit(self.pyfont.render('dist_to ' + str(round(dist_to_hazard,1)) + ' m', True, ( 255, 255, 0)), (self.display_size*1,120))
-
+    self.display.blit(self.pyfont.render('lead_dist ' + str(round(dist_to_lead,1)) + ' m', True, ( 255, 255, 0)), (self.display_size*1,120))
+    self.display.blit(self.pyfont.render('lead_v ' + str(round(lead_speed,1)) + ' m/s', True, ( 255, 255, 0)), (self.display_size*1,100))
     # Display on pygame
     pygame.display.flip()
 
