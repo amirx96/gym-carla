@@ -45,15 +45,12 @@ class CarlaEnv(gym.Env):
     self.desired_speed = params['desired_speed']
     self.max_ego_spawn_times = params['max_ego_spawn_times']
     self.display_route = params['display_route']
-    if 'pixor' in params.keys():
-      self.pixor = params['pixor']
-      self.pixor_size = params['pixor_size']
-    else:
-      self.pixor = False
+    self.use_rgb_camera = params['RGB_cam']
+
 
     # Destination
     if params['task_mode'] == 'acc_1':
-      self.dests = None #[[592.1,244.7,0]] # stopping condition in Town 06
+      self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
     else:
       self.dests = None
 
@@ -74,13 +71,6 @@ class CarlaEnv(gym.Env):
       'birdeye': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
       'state': spaces.Box(np.array([-2, -1, -5, 0]), np.array([2, 1, 30, 1]), dtype=np.float32)
       }
-    if self.pixor:
-      observation_space_dict.update({
-        'roadmap': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
-        'vh_clas': spaces.Box(low=0, high=1, shape=(self.pixor_size, self.pixor_size, 1), dtype=np.float32),
-        'vh_regr': spaces.Box(low=-5, high=5, shape=(self.pixor_size, self.pixor_size, 6), dtype=np.float32),
-        'pixor_state': spaces.Box(np.array([-1000, -1000, -1, -1, -5]), np.array([1000, 1000, 1, 1, 20]), dtype=np.float32)
-        })
     self.observation_space = spaces.Dict(observation_space_dict)
 
     # Connect to carla server and get world object
@@ -128,7 +118,7 @@ class CarlaEnv(gym.Env):
 
     # Set fixed simulation step for synchronous mode
     self.settings = self.world.get_settings()
-    self.settings.fixed_delta_seconds = self.dt
+    #self.settings.fixed_delta_seconds = self.dt
 
     # Record the time of total steps and resetting steps
     self.reset_step = 0
@@ -137,11 +127,6 @@ class CarlaEnv(gym.Env):
     # Initialize the renderer
     self._init_renderer()
 
-    # Get pixel grid points
-    if self.pixor:
-      x, y = np.meshgrid(np.arange(self.pixor_size), np.arange(self.pixor_size)) # make a canvas with coordinates
-      x, y = x.flatten(), y.flatten()
-      self.pixel_grid = np.vstack((x, y)).T
 
   def reset(self):
     # Clear sensor objects  
@@ -221,14 +206,15 @@ class CarlaEnv(gym.Env):
 
 
     # Add camera sensor
-    self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
-    self.camera_sensor.listen(lambda data: get_camera_img(data))
-    def get_camera_img(data):
-      array = np.frombuffer(data.raw_data, dtype = np.dtype("uint8"))
-      array = np.reshape(array, (data.height, data.width, 4))
-      array = array[:, :, :3]
-      array = array[:, :, ::-1]
-      self.camera_img = array
+    if self.use_rgb_camera:
+      self.camera_sensor = self.world.spawn_actor(self.camera_bp, self.camera_trans, attach_to=self.ego)
+      self.camera_sensor.listen(lambda data: get_camera_img(data))
+      def get_camera_img(data):
+        array = np.frombuffer(data.raw_data, dtype = np.dtype("uint8"))
+        array = np.reshape(array, (data.height, data.width, 4))
+        array = array[:, :, :3]
+        array = array[:, :, ::-1]
+        self.camera_img = array
 
     # Update timesteps
     self.time_step=0
@@ -236,6 +222,8 @@ class CarlaEnv(gym.Env):
 
     # Enable sync mode
     self.settings.synchronous_mode = True
+    if not self.use_rgb_camera:
+      self.settings.no_rendering_mode = True
     self.world.apply_settings(self.settings)
 
     self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
@@ -265,7 +253,7 @@ class CarlaEnv(gym.Env):
 
     # Apply control
     act = carla.VehicleControl(throttle=float(throttle), steer=float(-steer), brake=float(brake))
-    #self.ego.apply_control(act)
+    self.ego.apply_control(act)
 
     self.world.tick()
 
@@ -287,7 +275,6 @@ class CarlaEnv(gym.Env):
       'waypoints': self.waypoints,
       'vehicle_front': self.vehicle_front
     }
-    
     # Update timesteps
     self.time_step += 1
     self.total_step += 1
@@ -419,7 +406,7 @@ class CarlaEnv(gym.Env):
       self.ego=vehicle
 
       batch = []
-      batch.append(carla.command.SetAutopilot(self.ego,True))
+      batch.append(carla.command.SetAutopilot(self.ego,False))
       self.client.apply_batch_sync(batch)
       self.tm.vehicle_percentage_speed_difference(self.ego,-30)
       #self.tm.distance_to_leading_vehicle(self.ego,20.0)
@@ -475,31 +462,16 @@ class CarlaEnv(gym.Env):
     birdeye = birdeye[0:self.display_size, :, :]
     birdeye = display_to_rgb(birdeye, self.obs_size)
 
-    # Roadmap
-    if self.pixor:
-      roadmap_render_types = ['roadmap']
-      if self.display_route:
-        roadmap_render_types.append('waypoints')
-      self.birdeye_render.render(self.display, roadmap_render_types)
-      roadmap = pygame.surfarray.array3d(self.display)
-      roadmap = roadmap[0:self.display_size, :, :]
-      roadmap = display_to_rgb(roadmap, self.obs_size)
-      # Add ego vehicle
-      for i in range(self.obs_size):
-        for j in range(self.obs_size):
-          if abs(birdeye[i, j, 0] - 255)<20 and abs(birdeye[i, j, 1] - 0)<20 and abs(birdeye[i, j, 0] - 255)<20:
-            roadmap[i, j, :] = birdeye[i, j, :]
 
-    # Display birdeye image
-    birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
-    self.display.blit(birdeye_surface, (0, 0))
 
 
     ## Display camera image
-    camera = resize(self.camera_img, (self.obs_size, self.obs_size)) * 255
-    camera_surface = rgb_to_display_surface(camera, self.display_size)
-    self.display.blit(camera_surface, (self.display_size * 2, 0))
-
+    if self.use_rgb_camera:
+      camera = resize(self.camera_img, (self.obs_size, self.obs_size)) * 255
+      camera_surface = rgb_to_display_surface(camera, self.display_size)
+      self.display.blit(camera_surface, (self.display_size * 2, 0))
+    else:
+      camera = np.zeros((self.obs_size, self.obs_size, 3), dtype=np.uint8)
     # Display on pygame
     pygame.display.flip()
 
@@ -515,41 +487,41 @@ class CarlaEnv(gym.Env):
     speed = np.sqrt(v.x**2 + v.y**2)
     state = np.array([lateral_dis, - delta_yaw, speed, self.vehicle_front])
 
-    if self.pixor:
-      ## Vehicle classification and regression maps (requires further normalization)
-      vh_clas = np.zeros((self.pixor_size, self.pixor_size))
-      vh_regr = np.zeros((self.pixor_size, self.pixor_size, 6))
+    # if self.pixor:
+    #   ## Vehicle classification and regression maps (requires further normalization)
+    #   vh_clas = np.zeros((self.pixor_size, self.pixor_size))
+    #   vh_regr = np.zeros((self.pixor_size, self.pixor_size, 6))
 
-      # Generate the PIXOR image. Note in CARLA it is using left-hand coordinate
-      # Get the 6-dim geom parametrization in PIXOR, here we use pixel coordinate
-      for actor in self.world.get_actors().filter('vehicle.*'):
-        x, y, yaw, l, w = get_info(actor)
-        x_local, y_local, yaw_local = get_local_pose((x, y, yaw), (ego_x, ego_y, ego_yaw))
-        if actor.id != self.ego.id:
-          if abs(y_local)<self.obs_range/2+1 and x_local<self.obs_range-self.d_behind+1 and x_local>-self.d_behind-1:
-            x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel = get_pixel_info(
-              local_info=(x_local, y_local, yaw_local, l, w),
-              d_behind=self.d_behind, obs_range=self.obs_range, image_size=self.pixor_size)
-            cos_t = np.cos(yaw_pixel)
-            sin_t = np.sin(yaw_pixel)
-            logw = np.log(w_pixel)
-            logl = np.log(l_pixel)
-            pixels = get_pixels_inside_vehicle(
-              pixel_info=(x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel),
-              pixel_grid=self.pixel_grid)
-            for pixel in pixels:
-              vh_clas[pixel[0], pixel[1]] = 1
-              dx = x_pixel - pixel[0]
-              dy = y_pixel - pixel[1]
-              vh_regr[pixel[0], pixel[1], :] = np.array(
-                [cos_t, sin_t, dx, dy, logw, logl])
+    #   # Generate the PIXOR image. Note in CARLA it is using left-hand coordinate
+    #   # Get the 6-dim geom parametrization in PIXOR, here we use pixel coordinate
+    #   for actor in self.world.get_actors().filter('vehicle.*'):
+    #     x, y, yaw, l, w = get_info(actor)
+    #     x_local, y_local, yaw_local = get_local_pose((x, y, yaw), (ego_x, ego_y, ego_yaw))
+    #     if actor.id != self.ego.id:
+    #       if abs(y_local)<self.obs_range/2+1 and x_local<self.obs_range-self.d_behind+1 and x_local>-self.d_behind-1:
+    #         x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel = get_pixel_info(
+    #           local_info=(x_local, y_local, yaw_local, l, w),
+    #           d_behind=self.d_behind, obs_range=self.obs_range, image_size=self.pixor_size)
+    #         cos_t = np.cos(yaw_pixel)
+    #         sin_t = np.sin(yaw_pixel)
+    #         logw = np.log(w_pixel)
+    #         logl = np.log(l_pixel)
+    #         pixels = get_pixels_inside_vehicle(
+    #           pixel_info=(x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel),
+    #           pixel_grid=self.pixel_grid)
+    #         for pixel in pixels:
+    #           vh_clas[pixel[0], pixel[1]] = 1
+    #           dx = x_pixel - pixel[0]
+    #           dy = y_pixel - pixel[1]
+    #           vh_regr[pixel[0], pixel[1], :] = np.array(
+    #             [cos_t, sin_t, dx, dy, logw, logl])
 
-      # Flip the image matrix so that the origin is at the left-bottom
-      vh_clas = np.flip(vh_clas, axis=0)
-      vh_regr = np.flip(vh_regr, axis=0)
+    #   # Flip the image matrix so that the origin is at the left-bottom
+    #   vh_clas = np.flip(vh_clas, axis=0)
+    #   vh_regr = np.flip(vh_regr, axis=0)
 
-      # Pixor state, [x, y, cos(yaw), sin(yaw), speed]
-      pixor_state = [ego_x, ego_y, np.cos(ego_yaw), np.sin(ego_yaw), speed]
+    #   # Pixor state, [x, y, cos(yaw), sin(yaw), speed]
+    #   pixor_state = [ego_x, ego_y, np.cos(ego_yaw), np.sin(ego_yaw), speed]
 
     obs = {
       'camera':camera.astype(np.uint8),
@@ -557,13 +529,6 @@ class CarlaEnv(gym.Env):
       'state': state,
     }
 
-    if self.pixor:
-      obs.update({
-        'roadmap':roadmap.astype(np.uint8),
-        'vh_clas':np.expand_dims(vh_clas, -1).astype(np.float32),
-        'vh_regr':vh_regr.astype(np.float32),
-        'pixor_state': pixor_state,
-      })
 
     return obs
 
@@ -627,7 +592,7 @@ class CarlaEnv(gym.Env):
     # If out of lane
     dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
     if abs(dis) > self.out_lane_thres:
-      return False#True
+      return True
 
     return False
 

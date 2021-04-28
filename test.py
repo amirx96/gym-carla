@@ -37,19 +37,22 @@ def main():
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
     'pixor': False,  # whether to output PIXOR observation
+    'RGB_cam': True, # whether to use RGB camera sensor
   }
 
   # Set gym-carla environment
   env = gym.make('carla-v0', params=params)
   obs = env.reset()
-
+  episode = 0
   while True:
     action = [2.0, 0.0]
     obs,r,done,info = env.step(action)
 
+
     if done:
       obs = env.reset()
-
+      print("Episode %d, Reward % f" % (episode,r))
+      episode +=1
 
 if __name__ == '__main__':
   main()
