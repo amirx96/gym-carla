@@ -162,9 +162,9 @@ class CarlaEnv(gym.Env):
           count -= 1
         if count <= 0:
           break
-    # while count > 0:
-    #   if self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4]):
-    #     count -= 1
+    while count > 0:
+      if self._try_spawn_random_vehicle_at(random.choice(ego_vehicle_traffic_spawns), number_of_wheels=[4]):
+        count -= 1
 
 
 
@@ -227,8 +227,7 @@ class CarlaEnv(gym.Env):
     self.world.apply_settings(self.settings)
 
     self.routeplanner = RoutePlanner(self.ego, self.max_waypt)
-    self.waypoints, _, self.vehicle_front = self.routeplanner.run_step()
-
+    self.waypoints, _, self.vehicle_hazards = self.routeplanner.run_step()
     # Set ego information for render
     self.birdeye_render.set_hero(self.ego, self.ego.id)
 
@@ -268,12 +267,11 @@ class CarlaEnv(gym.Env):
       self.walker_polygons.pop(0)
 
     # route planner
-    self.waypoints, _, self.vehicle_front = self.routeplanner.run_step()
-
+    self.waypoints, _, self.vehicle_hazards = self.routeplanner.run_step()
+    #print(self.vehicle_hazards)
     # state information
     info = {
       'waypoints': self.waypoints,
-      'vehicle_front': self.vehicle_front
     }
     # Update timesteps
     self.time_step += 1
@@ -312,6 +310,7 @@ class CarlaEnv(gym.Env):
     """Initialize the birdeye view renderer.
     """
     pygame.init()
+    self.pyfont = pygame.font.SysFont(None, 18)
     self.display = pygame.display.set_mode(
     (self.display_size * 3, self.display_size),
     pygame.HWSURFACE | pygame.DOUBLEBUF)
@@ -462,19 +461,6 @@ class CarlaEnv(gym.Env):
     birdeye = birdeye[0:self.display_size, :, :]
     birdeye = display_to_rgb(birdeye, self.obs_size)
 
-
-
-
-    ## Display camera image
-    if self.use_rgb_camera:
-      camera = resize(self.camera_img, (self.obs_size, self.obs_size)) * 255
-      camera_surface = rgb_to_display_surface(camera, self.display_size)
-      self.display.blit(camera_surface, (self.display_size * 2, 0))
-    else:
-      camera = np.zeros((self.obs_size, self.obs_size, 3), dtype=np.uint8)
-    # Display on pygame
-    pygame.display.flip()
-
     # State observation
     ego_trans = self.ego.get_transform()
     ego_x = ego_trans.location.x
@@ -485,7 +471,38 @@ class CarlaEnv(gym.Env):
       np.array(np.array([np.cos(ego_yaw), np.sin(ego_yaw)]))))
     v = self.ego.get_velocity()
     speed = np.sqrt(v.x**2 + v.y**2)
-    state = np.array([lateral_dis, - delta_yaw, speed, self.vehicle_front])
+    state = np.array([lateral_dis, - delta_yaw, speed])
+    ## Get leading vehicle info
+    
+    if len(self.vehicle_hazards) > 0:
+      dist_to_hazard = 100
+      for i in range(len(self.vehicle_hazards)):
+        hazard_loc = self.vehicle_hazards[i].get_transform()
+        dist_to_hazard_ = ( (hazard_loc.location.x - ego_x)**2 + (hazard_loc.location.y - ego_y)**2)**(1/2)
+        dist_to_hazard = dist_to_hazard_ if dist_to_hazard_ < dist_to_hazard else dist_to_hazard
+    else:
+      dist_to_hazard = -1
+
+
+    ## Display camera image
+    if self.use_rgb_camera:
+      camera = resize(self.camera_img, (self.obs_size, self.obs_size)) * 255
+      camera_surface = rgb_to_display_surface(camera, self.display_size)
+      self.display.blit(camera_surface, (self.display_size * 2, 0))
+    else:
+      camera = np.zeros((self.obs_size, self.obs_size, 3), dtype=np.uint8)
+
+    
+
+    ## Display info statistics
+    self.display.blit(self.pyfont.render('speed ' + str(round(speed,1)) + ' m/s', True, ( 255, 0, 0)),(self.display_size*1,80))
+    self.display.blit(self.pyfont.render('dist_to ' + str(round(dist_to_hazard,1)) + ' m', True, ( 255, 255, 0)), (self.display_size*1,120))
+
+    # Display on pygame
+    pygame.display.flip()
+
+
+
 
     # if self.pixor:
     #   ## Vehicle classification and regression maps (requires further normalization)

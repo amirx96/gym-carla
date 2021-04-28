@@ -46,7 +46,7 @@ class RoutePlanner():
     self._target_road_option = RoadOption.LANEFOLLOW
 
     self._last_traffic_light = None
-    self._proximity_threshold = 15.0
+    self._proximity_threshold = 65.0
 
     self._compute_next_waypoints(k=200)
 
@@ -84,9 +84,9 @@ class RoutePlanner():
 
   def run_step(self):
     waypoints = self._get_waypoints()
-    red_light, vehicle_front = self._get_hazard()
+    red_light, vehicle_hazards = self._get_hazard()
     # red_light = False
-    return waypoints, red_light, vehicle_front
+    return waypoints, red_light, vehicle_hazards
 
   def _get_waypoints(self):
     """
@@ -141,12 +141,12 @@ class RoutePlanner():
     lights_list = actor_list.filter("*traffic_light*")
 
     # check possible obstacles
-    vehicle_state = self._is_vehicle_hazard(vehicle_list)
+    vehicle_hazards= self._is_vehicle_hazard(vehicle_list)
 
     # check for the state of the traffic lights
     light_state = self._is_light_red_us_style(lights_list)
 
-    return light_state, vehicle_state
+    return light_state, vehicle_hazards
 
   def _is_vehicle_hazard(self, vehicle_list):
     """
@@ -168,7 +168,7 @@ class RoutePlanner():
 
     ego_vehicle_location = self._vehicle.get_location()
     ego_vehicle_waypoint = self._map.get_waypoint(ego_vehicle_location)
-
+    vehicle_hazards = []
     for target_vehicle in vehicle_list:
       # do not account for the ego vehicle
       if target_vehicle.id == self._vehicle.id:
@@ -184,9 +184,9 @@ class RoutePlanner():
       if is_within_distance_ahead(loc, ego_vehicle_location,
                     self._vehicle.get_transform().rotation.yaw,
                     self._proximity_threshold):
-        return True
+        vehicle_hazards.append((target_vehicle))
 
-    return False
+    return vehicle_hazards
 
   def _is_light_red_us_style(self, lights_list):
     """
