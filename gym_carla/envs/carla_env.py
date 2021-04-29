@@ -139,18 +139,6 @@ class CarlaEnv(gym.Env):
     # Disable sync mode
     self._set_synchronous_mode(False)
 
-    # Spawn surrounding vehicles
-    # random.shuffle(self.vehicle_spawn_points)
-    # count = self.number_of_vehicles
-    # if count > 0:
-    #   for spawn_point in self.vehicle_spawn_points:
-    #     if self._try_spawn_random_vehicle_at(spawn_point, number_of_wheels=[4]):
-    #       count -= 1
-    #     if count <= 0:
-    #       break
-    # while count > 0:
-    #   if self._try_spawn_random_vehicle_at(random.choice(self.vehicle_spawn_points), number_of_wheels=[4]):
-    #     count -= 1
 
     # Spawn vehicles in same lane as ego vehicle and ahead
     ego_vehicle_traffic_spawns = get_spawn_points_for_traffic(40,-5,self.map,self.number_of_vehicles)
@@ -347,6 +335,8 @@ class CarlaEnv(gym.Env):
       batch = []
       batch.append(carla.command.SetAutopilot(vehicle,True))
       self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
+      #vehicle.enable_constant_velocity(np.random.uniform(low=18.0,high=30.0))
+      self.tm.vehicle_percentage_speed_difference(vehicle,np.random.uniform(low=-30,high=15))
       return True
     return False
 
@@ -517,42 +507,6 @@ class CarlaEnv(gym.Env):
 
 
 
-
-    # if self.pixor:
-    #   ## Vehicle classification and regression maps (requires further normalization)
-    #   vh_clas = np.zeros((self.pixor_size, self.pixor_size))
-    #   vh_regr = np.zeros((self.pixor_size, self.pixor_size, 6))
-
-    #   # Generate the PIXOR image. Note in CARLA it is using left-hand coordinate
-    #   # Get the 6-dim geom parametrization in PIXOR, here we use pixel coordinate
-    #   for actor in self.world.get_actors().filter('vehicle.*'):
-    #     x, y, yaw, l, w = get_info(actor)
-    #     x_local, y_local, yaw_local = get_local_pose((x, y, yaw), (ego_x, ego_y, ego_yaw))
-    #     if actor.id != self.ego.id:
-    #       if abs(y_local)<self.obs_range/2+1 and x_local<self.obs_range-self.d_behind+1 and x_local>-self.d_behind-1:
-    #         x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel = get_pixel_info(
-    #           local_info=(x_local, y_local, yaw_local, l, w),
-    #           d_behind=self.d_behind, obs_range=self.obs_range, image_size=self.pixor_size)
-    #         cos_t = np.cos(yaw_pixel)
-    #         sin_t = np.sin(yaw_pixel)
-    #         logw = np.log(w_pixel)
-    #         logl = np.log(l_pixel)
-    #         pixels = get_pixels_inside_vehicle(
-    #           pixel_info=(x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel),
-    #           pixel_grid=self.pixel_grid)
-    #         for pixel in pixels:
-    #           vh_clas[pixel[0], pixel[1]] = 1
-    #           dx = x_pixel - pixel[0]
-    #           dy = y_pixel - pixel[1]
-    #           vh_regr[pixel[0], pixel[1], :] = np.array(
-    #             [cos_t, sin_t, dx, dy, logw, logl])
-
-    #   # Flip the image matrix so that the origin is at the left-bottom
-    #   vh_clas = np.flip(vh_clas, axis=0)
-    #   vh_regr = np.flip(vh_regr, axis=0)
-
-    #   # Pixor state, [x, y, cos(yaw), sin(yaw), speed]
-    #   pixor_state = [ego_x, ego_y, np.cos(ego_yaw), np.sin(ego_yaw), speed]
 
     obs = {
       'camera':camera.astype(np.uint8),
