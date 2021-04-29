@@ -18,10 +18,7 @@ def main():
     'max_past_step': 1,  # the number of past steps to draw
     'dt': 0.1,  # time interval between two frames
     'discrete': False,  # whether to use discrete control space
-    'discrete_acc': [-3.0, 0.0, 3.0],  # discrete value of accelerations
-    'discrete_steer': [-0.2, 0.0, 0.2],  # discrete value of steering angles
     'continuous_accel_range': [-3.0, 3.0],  # continuous acceleration range
-    'continuous_steer_range': [-0.3, 0.3],  # continuous steering angle range
     'ego_vehicle_filter': 'vehicle.lincoln*',  # filter for defining ego vehicle
     'port': 2000,  # connection port
     'town': 'Town06',  # which town to simulate
@@ -45,10 +42,10 @@ def main():
   obs = env.reset()
   episode = 0
   while True:
-    action = [2.0, 0.0]
+    action = [3.0]
     obs,r,done,info = env.step(action)
 
-
+   #print(obs)
     if done:
       obs = env.reset()
       print("Episode %d, Reward % f" % (episode,r))

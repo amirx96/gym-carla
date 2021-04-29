@@ -46,7 +46,7 @@ class CarlaEnv(gym.Env):
     self.max_ego_spawn_times = params['max_ego_spawn_times']
     self.display_route = params['display_route']
     self.use_rgb_camera = params['RGB_cam']
-
+    self.traffic_vehicles = []
 
     # Destination
     if params['task_mode'] == 'acc_1':
@@ -55,21 +55,11 @@ class CarlaEnv(gym.Env):
       self.dests = None
 
     # action and observation spaces
-    self.discrete = params['discrete']
-    self.discrete_act = [params['discrete_acc'], params['discrete_steer']] # acc, steer
-    self.n_acc = len(self.discrete_act[0])
-    self.n_steer = len(self.discrete_act[1])
-    if self.discrete:
-      self.action_space = spaces.Discrete(self.n_acc*self.n_steer)
-    else:
-      self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0], 
-      params['continuous_steer_range'][0]]), np.array([params['continuous_accel_range'][1],
-      params['continuous_steer_range'][1]]), dtype=np.float32)  # acc, steer
+
+    self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
     observation_space_dict = {
-      'camera': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
-      'lidar': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
-      'birdeye': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
-      'state': spaces.Box(np.array([-2, -1, -5, 0]), np.array([2, 1, 30, 1]), dtype=np.float32)
+      'state': spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32),
+      'weather': spaces.Discrete(1),
       }
     self.observation_space = spaces.Dict(observation_space_dict)
 
@@ -118,7 +108,7 @@ class CarlaEnv(gym.Env):
 
     # Set fixed simulation step for synchronous mode
     self.settings = self.world.get_settings()
-    #self.settings.fixed_delta_seconds = self.dt
+    self.settings.fixed_delta_seconds = self.dt
 
     # Record the time of total steps and resetting steps
     self.reset_step = 0
@@ -129,7 +119,8 @@ class CarlaEnv(gym.Env):
 
 
   def reset(self):
-    # Clear sensor objects  
+    # Clear sensor objects
+    self._clear_all_sensors()
     self.collision_sensor = None
     self.camera_sensor = None
 
@@ -154,7 +145,12 @@ class CarlaEnv(gym.Env):
       if self._try_spawn_random_vehicle_at(random.choice(ego_vehicle_traffic_spawns), number_of_wheels=[4]):
         count -= 1
 
+    # set autopilot for all traffic vehicles:
 
+    batch = []
+    for vehicle in self.traffic_vehicles:
+      batch.append(carla.command.SetAutopilot(vehicle,True))
+    self.client.apply_batch_sync(batch)
 
     # Get actors polygon list
     self.vehicle_polygons = []
@@ -209,7 +205,7 @@ class CarlaEnv(gym.Env):
     self.reset_step+=1
 
     # Enable sync mode
-    self.settings.synchronous_mode = True
+    self.settings.synchronous_mode = False
     if not self.use_rgb_camera:
       self.settings.no_rendering_mode = True
     self.world.apply_settings(self.settings)
@@ -223,12 +219,7 @@ class CarlaEnv(gym.Env):
   
   def step(self, action):
     # Calculate acceleration and steering
-    if self.discrete:
-      acc = self.discrete_act[0][action//self.n_steer]
-      steer = self.discrete_act[1][action%self.n_steer]
-    else:
-      acc = action[0]
-      steer = action[1]
+    acc = action[0]
 
     # Convert acceleration to throttle and brake
     if acc > 0:
@@ -239,7 +230,7 @@ class CarlaEnv(gym.Env):
       brake = np.clip(-acc/8,0,1)
 
     # Apply control
-    act = carla.VehicleControl(throttle=float(throttle), steer=float(-steer), brake=float(brake))
+    act = carla.VehicleControl(throttle=float(throttle), steer=0.0, brake=float(brake))
     self.ego.apply_control(act)
 
     self.world.tick()
@@ -260,6 +251,7 @@ class CarlaEnv(gym.Env):
     # state information
     info = {
       'waypoints': self.waypoints,
+      
     }
     # Update timesteps
     self.time_step += 1
@@ -331,41 +323,18 @@ class CarlaEnv(gym.Env):
     blueprint.set_attribute('role_name', 'autopilot')
     vehicle = self.world.try_spawn_actor(blueprint, transform)
     if vehicle is not None:
+      self.traffic_vehicles.append(vehicle)
       #vehicle.set_autopilot()
-      batch = []
-      batch.append(carla.command.SetAutopilot(vehicle,True))
-      self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
+      # batch = []
+      # batch.append(carla.command.SetAutopilot(vehicle,True))
+      # self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
       #vehicle.enable_constant_velocity(np.random.uniform(low=18.0,high=30.0))
+      vehicle.set_autopilot(True,self.tm_port)
       self.tm.vehicle_percentage_speed_difference(vehicle,np.random.uniform(low=-30,high=15))
       return True
     return False
 
-  def _try_spawn_random_walker_at(self, transform):
-    """Try to spawn a walker at specific transform with random bluprint.
 
-    Args:
-      transform: the carla transform object.
-
-    Returns:
-      Bool indicating whether the spawn is successful.
-    """
-    walker_bp = random.choice(self.world.get_blueprint_library().filter('walker.*'))
-    # set as not invencible
-    if walker_bp.has_attribute('is_invincible'):
-      walker_bp.set_attribute('is_invincible', 'false')
-    walker_actor = self.world.try_spawn_actor(walker_bp, transform)
-
-    if walker_actor is not None:
-      walker_controller_bp = self.world.get_blueprint_library().find('controller.ai.walker')
-      walker_controller_actor = self.world.spawn_actor(walker_controller_bp, carla.Transform(), walker_actor)
-      # start walker
-      walker_controller_actor.start()
-      # set walk to random point
-      walker_controller_actor.go_to_location(self.world.get_random_location_from_navigation())
-      # random max speed
-      walker_controller_actor.set_max_speed(1 + random.random())    # max speed between 1 and 2 (default is 1.4 m/s)
-      return True
-    return False
 
   def _try_spawn_ego_vehicle_at(self, transform):
     """Try to spawn the ego vehicle at specific transform.
@@ -394,13 +363,13 @@ class CarlaEnv(gym.Env):
     if vehicle is not None:
       self.ego=vehicle
 
-      batch = []
-      batch.append(carla.command.SetAutopilot(self.ego,False))
-      self.client.apply_batch_sync(batch)
-      self.tm.vehicle_percentage_speed_difference(self.ego,-30)
+      # batch = []
+      # batch.append(carla.command.SetAutopilot(self.ego,False))
+      # self.client.apply_batch_sync(batch)
+      # self.tm.vehicle_percentage_speed_difference(self.ego,-30)
       #self.tm.distance_to_leading_vehicle(self.ego,20.0)
-      self.tm.set_global_distance_to_leading_vehicle(0.0)
-      self.tm.auto_lane_change(self.ego,False)
+      #self.tm.set_global_distance_to_leading_vehicle(0.0)
+      # self.tm.auto_lane_change(self.ego,False)
 
       return True
     print ('could not spawn vehicle')
@@ -482,7 +451,7 @@ class CarlaEnv(gym.Env):
       lead_speed = -1
 
     
-    state = np.array([lateral_dis, - delta_yaw, speed])
+    state = np.array([speed, lead_speed, dist_to_lead])
     ## Get leading vehicle info
     
 
@@ -509,9 +478,8 @@ class CarlaEnv(gym.Env):
 
 
     obs = {
-      'camera':camera.astype(np.uint8),
-      'birdeye':birdeye.astype(np.uint8),
       'state': state,
+      'weather': 0
     }
 
 
@@ -530,7 +498,6 @@ class CarlaEnv(gym.Env):
       r_collision = -1
 
     # reward for steering:
-    r_steer = -self.ego.get_control().steer**2
 
     # reward for out of lane
     ego_x, ego_y = get_pos(self.ego)
@@ -551,7 +518,7 @@ class CarlaEnv(gym.Env):
     # cost for lateral acceleration
     r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + r_steer*5 + 0.2*r_lat - 0.1
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out  + 0.2*r_lat - 0.1
 
     return r
 
@@ -579,6 +546,9 @@ class CarlaEnv(gym.Env):
     if abs(dis) > self.out_lane_thres:
       return True
 
+    # if stopped for a vehicle ahead
+    # TODO 
+
     return False
 
   def _clear_all_actors(self, actor_filters):
@@ -589,3 +559,9 @@ class CarlaEnv(gym.Env):
           if actor.type_id == 'controller.ai.walker':
             actor.stop()
           actor.destroy()
+  def _clear_all_sensors(self):
+    try:
+      self.collision_sensor.destroy()
+      self.camera_sensor.destroy()  
+    except:
+      pass

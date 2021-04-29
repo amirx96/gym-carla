@@ -255,7 +255,7 @@ def get_waypoint_for_ego_spawn(road_id,lane_id,s,map):
 def get_spawn_points_for_traffic(road_id,lane_id,map,n_vehicles):
   transforms = []
   for i in range(n_vehicles):
-    wpt = map.get_waypoint_xodr(road_id,lane_id,s=i*30.0)
+    wpt = map.get_waypoint_xodr(road_id,lane_id,s=i*30.0 + 10)
     wpt.transform.location.z += 2
     transforms.append(wpt.transform)
   return transforms
