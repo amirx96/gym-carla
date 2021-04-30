@@ -62,11 +62,7 @@ class CarlaEnv(gym.Env):
 
     # self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
     self.action_space = spaces.Discrete(len(self.discrete_acc))
-    observation_space_dict = {
-      'state': spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32),
-      'weather': spaces.Discrete(1),
-      }
-    self.observation_space = spaces.Dict(observation_space_dict)
+    self.observation_space = spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32)
 
     # Connect to carla server and get world object
     print('connecting to Carla server...')
@@ -210,7 +206,7 @@ class CarlaEnv(gym.Env):
     self.reset_step+=1
 
     # Enable sync mode
-    self.settings.synchronous_mode = True
+    self.settings.synchronous_mode = False
     if not self.use_rgb_camera:
       self.settings.no_rendering_mode = True
     self.world.apply_settings(self.settings)
@@ -491,13 +487,9 @@ class CarlaEnv(gym.Env):
 
 
 
-    obs = {
-      'state': state,
-      'weather': 0
-    }
 
 
-    return obs
+    return state
 
   def _get_reward(self):
     """Calculate the step reward."""
@@ -528,11 +520,16 @@ class CarlaEnv(gym.Env):
     r_fast = 0
     if lspeed_lon > self.desired_speed:
       r_fast = -1
+    # cost for too slow
 
+    # cost for too fast
+    r_slow = 0
+    if lspeed_lon < self.desired_speed:
+      r_slow = -1
     # cost for lateral acceleration
     r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out  + 0.2*r_lat - 0.1
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + 5*r_slow  + 0.2*r_lat - 0.1
 
     return r
 
