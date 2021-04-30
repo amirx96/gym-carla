@@ -8,6 +8,22 @@
 import gym
 import gym_carla
 import carla
+import os
+import random
+from collections import deque
+import tensorflow as tf
+# from tf.keras import backend as bk
+# from tf.keras.layers import Dense
+# from tf.keras.models import Sequential
+# from tf.keras.optimizers import Adam
+# from tf.keras.losses import huber_loss
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras import backend as bk
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import Huber
+import numpy as np
+
 
 def main():
   # parameters for the gym_carla environment
@@ -29,7 +45,7 @@ def main():
     'lidar_bin': 0.125,  # bin size of lidar sensor (meter)
     'd_behind': 12,  # distance behind the ego vehicle (meter)
     'out_lane_thres': 2.0,  # threshold for out of lane
-    'desired_speed': 8,  # desired speed (m/s)
+    'desired_speed': 20,  # desired speed (m/s)
     'max_ego_spawn_times': 200,  # maximum times to spawn ego vehicle
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
@@ -42,7 +58,7 @@ def main():
   obs = env.reset()
   episode = 0
   while True:
-    action = [3.0]
+    action = 1
     obs,r,done,info = env.step(action)
 
    #print(obs)

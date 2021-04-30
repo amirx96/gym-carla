@@ -22,7 +22,7 @@ import carla
 from gym_carla.envs.render import BirdeyeRender
 from gym_carla.envs.route_planner import RoutePlanner
 from gym_carla.envs.misc import *
-
+# from simple_pid import PID
 
 class CarlaEnv(gym.Env):
   """An OpenAI gym wrapper for CARLA simulator."""
@@ -47,7 +47,11 @@ class CarlaEnv(gym.Env):
     self.display_route = params['display_route']
     self.use_rgb_camera = params['RGB_cam']
     self.traffic_vehicles = []
+    self.discrete_acc = [-1,-0.5,0.0,0.5,1.0] # discrete actions for throttle
 
+    # self.pedal_pid = PID(0.7,0.01,0.0)
+    # self.pedal_pid.output_limits = (-1,1)
+    # self.pedal_pid.setpoint = self.desired_speed
     # Destination
     if params['task_mode'] == 'acc_1':
       self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
@@ -56,7 +60,8 @@ class CarlaEnv(gym.Env):
 
     # action and observation spaces
 
-    self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
+    # self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
+    self.action_space = spaces.Discrete(len(self.discrete_acc))
     observation_space_dict = {
       'state': spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32),
       'weather': spaces.Discrete(1),
@@ -205,7 +210,7 @@ class CarlaEnv(gym.Env):
     self.reset_step+=1
 
     # Enable sync mode
-    self.settings.synchronous_mode = False
+    self.settings.synchronous_mode = True
     if not self.use_rgb_camera:
       self.settings.no_rendering_mode = True
     self.world.apply_settings(self.settings)
@@ -219,15 +224,24 @@ class CarlaEnv(gym.Env):
   
   def step(self, action):
     # Calculate acceleration and steering
-    acc = action[0]
+    acc = self.discrete_acc[action]
+    v = self.ego.get_velocity()
+    speed = np.sqrt(v.x**2 + v.y**2)
+
+    # acc = self.pedal_pid(speed)
+
 
     # Convert acceleration to throttle and brake
     if acc > 0:
-      throttle = np.clip(acc/3,0,1)
+      throttle = np.clip(acc,0,1)
       brake = 0
     else:
       throttle = 0
-      brake = np.clip(-acc/8,0,1)
+      brake = np.clip(-acc,0,1)
+    #print(acc,speed,self.desired_speed-speed)
+
+
+
 
     # Apply control
     act = carla.VehicleControl(throttle=float(throttle), steer=0.0, brake=float(brake))
