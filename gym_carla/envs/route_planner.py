@@ -46,7 +46,7 @@ class RoutePlanner():
     self._target_road_option = RoadOption.LANEFOLLOW
 
     self._last_traffic_light = None
-    self._proximity_threshold = 65.0
+    self._proximity_threshold = 200.0
 
     self._compute_next_waypoints(k=200)
 

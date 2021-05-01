@@ -177,16 +177,16 @@ def main():
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
     'pixor': False,  # whether to output PIXOR observation
-    'RGB_cam': True, # whether to use RGB camera sensor
+    'RGB_cam': False, # whether to use RGB camera sensor
   }
   solver_params = {
-    'layers': [24,24],
-    'alpha': 0.5,
-    'gamma': 1,
+    'layers': [64, 64, 64],
+    'alpha': 0.001,
+    'gamma': 0.99,
     'epsilon': 0.1,
     'replay_memory_size': 500000,
     'update_target_estimator_every': 10000,
-    'batch_size': 32,
+    'batch_size': 128,
   }
   # Set gym-carla environment
   env = gym.make('carla-v0', params=params)

@@ -48,7 +48,7 @@ class CarlaEnv(gym.Env):
     self.use_rgb_camera = params['RGB_cam']
     self.traffic_vehicles = []
     self.discrete_acc = [-1,-0.5,0.0,0.5,1.0] # discrete actions for throttle
-
+    self.cur_action = None
     # self.pedal_pid = PID(0.7,0.01,0.0)
     # self.pedal_pid.output_limits = (-1,1)
     # self.pedal_pid.setpoint = self.desired_speed
@@ -57,7 +57,7 @@ class CarlaEnv(gym.Env):
       self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
     else:
       self.dests = None
-
+    self.idle_timesteps = 0
     # action and observation spaces
 
     # self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
@@ -124,7 +124,7 @@ class CarlaEnv(gym.Env):
     self._clear_all_sensors()
     self.collision_sensor = None
     self.camera_sensor = None
-
+    self.idle_timesteps = 0
     # Delete sensors, vehicles and walkers
     self._clear_all_actors(['sensor.other.collision', 'sensor.lidar.ray_cast', 'sensor.camera.rgb', 'vehicle.*', 'controller.ai.walker', 'walker.*'])
 
@@ -224,6 +224,8 @@ class CarlaEnv(gym.Env):
     v = self.ego.get_velocity()
     speed = np.sqrt(v.x**2 + v.y**2)
 
+    if speed < 0:
+      self.idle_timesteps +=1
     # acc = self.pedal_pid(speed)
 
 
@@ -529,7 +531,10 @@ class CarlaEnv(gym.Env):
     # cost for lateral acceleration
     r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + 5*r_slow  + 0.2*r_lat - 0.1
+    # cost for idling 
+    r_idle = -0.1*self.idle_timesteps
+
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + 5*r_slow  - 0.1 + r_idle + 15*r_speed 
 
     return r
 
@@ -559,7 +564,9 @@ class CarlaEnv(gym.Env):
 
     # if stopped for a vehicle ahead
     # TODO 
-
+    if self.idle_timesteps > 500:
+      print('terminal due to too many idle timesteps')
+      return True
     return False
 
   def _clear_all_actors(self, actor_filters):
