@@ -36,7 +36,7 @@ def main():
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
     'pixor': False,  # whether to output PIXOR observation
-    'RGB_cam': True, # whether to use RGB camera sensor
+    'RGB_cam': False, # whether to use RGB camera sensor
   }
   solver_params = {
     'layers': [64, 64, 64],
@@ -52,26 +52,21 @@ def main():
   #check_env(env)
   obs = env.reset()
 
-  model = DQN('MlpPolicy', env, learning_rate=1e-3, prioritized_replay=True, verbose=1)
-  model.learn(total_timesteps=int(2e5))
+  model = DQN('MlpPolicy', env, learning_rate=1e-3, prioritized_replay=True, verbose=1,tensorboard_log="./dqn")
+  model.learn(total_timesteps=25000,tb_log_name="first_run")
 
-  #solver = DQN(env,solver_params)
-#   model = TRPO(MlpPolicy, env, verbose=1)
-#   model.learn(total_timesteps=25000)
+  model.save("deepq_carla")
 
-#   num_episodes = 2000
-#   for episode in range(num_episodes):
-#     reward = solver.train_episode()
-#     print("Episode %d, Reward % f" % (episode,reward))
-  # while True:
-  #   action = 4
-  #   next_state,reward,done,_ = env.step(action)
-  #   #print(next_state)
-  #  #print(obs)
-  #   if done:
-  #     obs = env.reset()
-  #     print("Episode %d, Reward % f" % (episode,r))
-  #     episode +=1
+  del model # remove to demonstrate saving and loading
+
+  model = DQN.load("deepq_carla")
+
+  obs = env.reset()
+  while True:
+    action, _states = model.predict(obs)
+    obs, rewards, dones, info = env.step(action)
+    env.render()
+
 
 if __name__ == '__main__':
   main()

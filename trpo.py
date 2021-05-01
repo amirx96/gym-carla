@@ -8,8 +8,8 @@ from collections import deque
 import numpy as np
 from collections import namedtuple
 from collections import deque
-# from stable_baselines.common.policies import MlpPolicy
-# from stable_baselines import TRPO
+from stable_baselines.common.policies import MlpPolicy
+from stable_baselines import TRPO
 
 from stable_baselines.common.env_checker import check_env
 

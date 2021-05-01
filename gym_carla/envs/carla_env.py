@@ -511,8 +511,8 @@ class CarlaEnv(gym.Env):
     ego_x, ego_y = get_pos(self.ego)
     dis, w = get_lane_dis(self.waypoints, ego_x, ego_y)
     r_out = 0
-    if abs(dis) > self.out_lane_thres:
-      r_out = -1
+    # if abs(dis) > self.out_lane_thres:
+    #   r_out = -1
 
     # longitudinal speed
     lspeed = np.array([v.x, v.y])
@@ -534,8 +534,8 @@ class CarlaEnv(gym.Env):
     # cost for idling 
     r_idle = -0.1*self.idle_timesteps
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 1*r_out + 5*r_slow  - 0.1 + r_idle + 15*r_speed 
-
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  - 0.1 + r_idle + 15*r_speed 
+    print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 15*r_speed) )
     return r
 
   def _terminal(self):
