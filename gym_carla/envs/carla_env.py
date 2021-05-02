@@ -22,7 +22,7 @@ import carla
 from gym_carla.envs.render import BirdeyeRender
 from gym_carla.envs.route_planner import RoutePlanner
 from gym_carla.envs.misc import *
-# from simple_pid import PID
+from simple_pid import PID
 
 class CarlaEnv(gym.Env):
   """An OpenAI gym wrapper for CARLA simulator."""
@@ -47,11 +47,13 @@ class CarlaEnv(gym.Env):
     self.display_route = params['display_route']
     self.use_rgb_camera = params['RGB_cam']
     self.traffic_vehicles = []
-    self.discrete_acc = [-1,-0.5,0.0,0.5,1.0] # discrete actions for throttle
+    #self.discrete_acc = [-1,-0.5,0.0,0.5,1.0] # discrete actions for throttle
+    self.discrete_vel = [-1.0, 0.0, 1.0] # discrete actions for velocity
     self.cur_action = None
-    # self.pedal_pid = PID(0.7,0.01,0.0)
-    # self.pedal_pid.output_limits = (-1,1)
-    # self.pedal_pid.setpoint = self.desired_speed
+    self.pedal_pid = PID(0.7,0.01,0.0)
+    self.pedal_pid.output_limits = (-1,1)
+    self.rl_speed = 0.0
+    self.pedal_pid.setpoint = 0.0
     # Destination
     if params['task_mode'] == 'acc_1':
       self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
@@ -61,7 +63,8 @@ class CarlaEnv(gym.Env):
     # action and observation spaces
 
     # self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
-    self.action_space = spaces.Discrete(len(self.discrete_acc))
+    #self.action_space = spaces.Discrete(len(self.discrete_acc))
+    self.action_space = spaces.Discrete(3) # slow down -1 m/s, do nothing, speed up 1 m/s
     self.observation_space = spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32)
 
     # Connect to carla server and get world object
@@ -220,12 +223,19 @@ class CarlaEnv(gym.Env):
   
   def step(self, action):
     # Calculate acceleration and steering
-    acc = self.discrete_acc[action]
+    #acc = self.discrete_acc[action]
     v = self.ego.get_velocity()
     speed = np.sqrt(v.x**2 + v.y**2)
 
-    if speed < 0:
+    if speed < 1e-1:
       self.idle_timesteps +=1
+    else:
+      self.idle_timesteps = 0
+    self.rl_speed += self.discrete_vel[action]
+    self.rl_speed = np.clip(self.rl_speed,0.0,30.0)
+
+    pid = self.pedal_pid( -(self.rl_speed-speed))
+    acc = pid
     # acc = self.pedal_pid(speed)
 
 
@@ -237,7 +247,7 @@ class CarlaEnv(gym.Env):
       throttle = 0
       brake = np.clip(-acc,0,1)
     #print(acc,speed,self.desired_speed-speed)
-
+    #print("rl-speed %.2f, pid %.2f, acc %.2f" % (self.rl_speed  , pid, acc) )
 
 
 
@@ -532,7 +542,7 @@ class CarlaEnv(gym.Env):
     r_lat = - abs(self.ego.get_control().steer) * lspeed_lon**2
 
     # cost for idling 
-    r_idle = -0.1*self.idle_timesteps
+    r_idle = -1*self.idle_timesteps
 
     r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  - 0.1 + r_idle + 15*r_speed 
     print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 15*r_speed) )
