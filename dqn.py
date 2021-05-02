@@ -36,7 +36,7 @@ def main():
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
     'pixor': False,  # whether to output PIXOR observation
-    'RGB_cam': False, # whether to use RGB camera sensor
+    'RGB_cam': True, # whether to use RGB camera sensor
   }
   solver_params = {
     'layers': [64, 64, 64],

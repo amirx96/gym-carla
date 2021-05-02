@@ -38,7 +38,7 @@ def main():
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
     'pixor': False,  # whether to output PIXOR observation
-    'RGB_cam': False, # whether to use RGB camera sensor
+    'RGB_cam': True, # whether to use RGB camera sensor
   }
   solver_params = {
     'layers': [64, 64, 64],
@@ -51,25 +51,23 @@ def main():
   }
   # Set gym-carla environment
   env = gym.make('carla-v0', params=params)
-  check_env(env)
+  # check_env(env)
   obs = env.reset()
-  #solver = DQN(env,solver_params)
-#   model = TRPO(MlpPolicy, env, verbose=1)
-#   model.learn(total_timesteps=25000)
 
-#   num_episodes = 2000
-#   for episode in range(num_episodes):
-#     reward = solver.train_episode()
-#     print("Episode %d, Reward % f" % (episode,reward))
-  # while True:
-  #   action = 4
-  #   next_state,reward,done,_ = env.step(action)
-  #   #print(next_state)
-  #  #print(obs)
-  #   if done:
-  #     obs = env.reset()
-  #     print("Episode %d, Reward % f" % (episode,r))
-  #     episode +=1
+  model = TRPO(MlpPolicy, env, verbose=1, tensorboard_log="./trpo")
+  model.learn(total_timesteps=25000, tb_log_name="first_run")
+  model.save("trpo_carla")
+
+  del model # remove to demonstrate saving and loading
+
+  model = TRPO.load("trpo_carla")
+
+  obs = env.reset()
+  while True:
+      action, _states = model.predict(obs)
+      obs, rewards, dones, info = env.step(action)
+      #env.render()
+
 
 if __name__ == '__main__':
   main()
