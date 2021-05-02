@@ -8,8 +8,11 @@ from collections import deque
 import numpy as np
 from collections import namedtuple
 from collections import deque
+# from stable_baselines.common.policies import MlpPolicy
+# from stable_baselines import TRPO
 from stable_baselines.common.policies import MlpPolicy
-from stable_baselines import TRPO
+from stable_baselines.common import make_vec_env
+from stable_baselines import PPO2
 
 from stable_baselines.common.env_checker import check_env
 
@@ -51,22 +54,40 @@ def main():
   }
   # Set gym-carla environment
   env = gym.make('carla-v0', params=params)
-  # check_env(env)
-  obs = env.reset()
+  # # check_env(env)
+  # obs = env.reset()
 
-  model = TRPO(MlpPolicy, env, verbose=1, tensorboard_log="./trpo")
-  model.learn(total_timesteps=25000, tb_log_name="first_run")
-  model.save("trpo_carla")
+  # model = TRPO(MlpPolicy, env, verbose=1, tensorboard_log="./trpo")
+  # model.learn(total_timesteps=250000, tb_log_name="first_run")
+  # model.save("trpo_carla")
+
+  # del model # remove to demonstrate saving and loading
+
+  # model = TRPO.load("trpo_carla")
+
+  # obs = env.reset()
+  # while True:
+  #     action, _states = model.predict(obs)
+  #     obs, rewards, dones, info = env.step(action)
+  #     #env.render()
+
+# multiprocess environment
+  # env = make_vec_env('CartPole-v1', n_envs=4)
+
+  model = PPO2(MlpPolicy, env, verbose=1)
+  model.learn(total_timesteps=25000)
+  model.save("ppo2_carla")
 
   del model # remove to demonstrate saving and loading
 
-  model = TRPO.load("trpo_carla")
+  model = PPO2.load("ppo2_carla")
 
+  # Enjoy trained agent
   obs = env.reset()
   while True:
       action, _states = model.predict(obs)
       obs, rewards, dones, info = env.step(action)
-      #env.render()
+      env.render()
 
 
 if __name__ == '__main__':
