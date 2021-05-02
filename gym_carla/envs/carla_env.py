@@ -141,7 +141,7 @@ class CarlaEnv(gym.Env):
 
 
     # Spawn vehicles in same lane as ego vehicle and ahead
-    ego_vehicle_traffic_spawns = get_spawn_points_for_traffic(40,-5,self.map,self.number_of_vehicles)
+    ego_vehicle_traffic_spawns = get_spawn_points_for_traffic(40,[-7,-6,-5,-4],self.map,self.number_of_vehicles)
     random.shuffle(ego_vehicle_traffic_spawns)
     count = self.number_of_vehicles
     if count > 0:
@@ -361,8 +361,9 @@ class CarlaEnv(gym.Env):
       # self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
       #vehicle.enable_constant_velocity(np.random.uniform(low=18.0,high=30.0))
       vehicle.set_autopilot(True,self.tm_port)
-      high = np.random.uniform(low=-20,high=-1)
-      low = np.random.uniform(low=80,high=99)
+      #self.tm.auto_lane_change(vehicle,False)
+      high = np.random.uniform(low=-20,high=0)
+      low = np.random.uniform(low=-20,high=0)
 
       
       self.tm.vehicle_percentage_speed_difference(vehicle,random.choice([high,low])) # percentage difference between posted speed and vehicle speed. Negative is greater

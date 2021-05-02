@@ -15,7 +15,7 @@ import carla
 import pygame
 from matplotlib.path import Path
 import skimage
-
+import random
 
 def get_speed(vehicle):
   """
@@ -252,9 +252,10 @@ def rgb_to_display_surface(rgb, display_size):
 def get_waypoint_for_ego_spawn(road_id,lane_id,s,map):
   return map.get_waypoint_xodr(road_id,lane_id,s=0)
 
-def get_spawn_points_for_traffic(road_id,lane_id,map,n_vehicles):
+def get_spawn_points_for_traffic(road_id,lane_ids,map,n_vehicles):
   transforms = []
   for i in range(n_vehicles):
+    lane_id = random.choice(lane_ids)
     wpt = map.get_waypoint_xodr(road_id,lane_id,s=i*30.0 + 10)
     wpt.transform.location.z += 2
     transforms.append(wpt.transform)
