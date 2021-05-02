@@ -49,6 +49,7 @@ class CarlaEnv(gym.Env):
     self.traffic_vehicles = []
     #self.discrete_acc = [-1,-0.5,0.0,0.5,1.0] # discrete actions for throttle
     self.discrete_vel = [-1.0, 0.0, 1.0] # discrete actions for velocity
+    self.discrete_actions = params['discrete'] # boolean to use discrete or continoius action space
     self.cur_action = None
     self.pedal_pid = PID(0.7,0.01,0.0)
     self.pedal_pid.output_limits = (-1,1)
@@ -64,7 +65,11 @@ class CarlaEnv(gym.Env):
 
     # self.action_space = spaces.Box(np.array([params['continuous_accel_range'][0]], dtype=np.float32), np.array([params['continuous_accel_range'][1]], dtype=np.float32))  # acc
     #self.action_space = spaces.Discrete(len(self.discrete_acc))
-    self.action_space = spaces.Discrete(3) # slow down -1 m/s, do nothing, speed up 1 m/s
+
+    if self.discrete_actions:
+      self.action_space = spaces.Discrete(3) # slow down -1 m/s, do nothing, speed up 1 m/s
+    else:
+      self.action_space = spaces.Box( np.array([0.0]),np.array([30.0])) # speed is continous from 0 m.s to 30 m.s
     self.observation_space = spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32)
 
     # Connect to carla server and get world object
@@ -231,7 +236,11 @@ class CarlaEnv(gym.Env):
       self.idle_timesteps +=1
     else:
       self.idle_timesteps = 0
-    self.rl_speed += self.discrete_vel[action]
+    
+    if self.discrete_actions:
+      self.rl_speed += self.discrete_vel[action] # [-1.0 0.0, 1.0]
+    else:
+      self.rl_speed = action # range from 0 to 30
     self.rl_speed = np.clip(self.rl_speed,0.0,30.0)
 
     pid = self.pedal_pid( -(self.rl_speed-speed))
@@ -312,7 +321,7 @@ class CarlaEnv(gym.Env):
     """Initialize the birdeye view renderer.
     """
     pygame.init()
-    self.pyfont = pygame.font.SysFont(None, 18)
+    self.pyfont = pygame.font.SysFont(None, 22)
     self.display = pygame.display.set_mode(
     (self.display_size * 3, self.display_size),
     pygame.HWSURFACE | pygame.DOUBLEBUF)
@@ -352,7 +361,11 @@ class CarlaEnv(gym.Env):
       # self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
       #vehicle.enable_constant_velocity(np.random.uniform(low=18.0,high=30.0))
       vehicle.set_autopilot(True,self.tm_port)
-      self.tm.vehicle_percentage_speed_difference(vehicle,np.random.uniform(low=-30,high=15))
+      high = np.random.uniform(low=-20,high=-1)
+      low = np.random.uniform(low=80,high=99)
+
+      
+      self.tm.vehicle_percentage_speed_difference(vehicle,random.choice([high,low])) # percentage difference between posted speed and vehicle speed. Negative is greater
       return True
     return False
 
@@ -544,7 +557,7 @@ class CarlaEnv(gym.Env):
     # cost for idling 
     r_idle = -1*self.idle_timesteps
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  - 0.1 + r_idle + 15*r_speed 
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  - 0.1 + r_idle + 10*r_speed 
     print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 15*r_speed) )
     return r
 
