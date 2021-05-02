@@ -9,7 +9,7 @@ import numpy as np
 from collections import namedtuple
 from stable_baselines import DQN
 from stable_baselines.common.evaluation import evaluate_policy
-
+from stable_baselines.deepq.policies import LnCnnPolicy
 
 def main():
   # parameters for the gym_carla environment
@@ -52,8 +52,8 @@ def main():
   #check_env(env)
   obs = env.reset()
 
-  model = DQN('MlpPolicy', env, learning_rate=1e-3, prioritized_replay=True, verbose=1,tensorboard_log="./dqn")
-  model.learn(total_timesteps=25000,tb_log_name="first_run")
+  model = DQN('LnMlpPolicy', env, learning_rate=1e-3, prioritized_replay=True, verbose=1,tensorboard_log="./dqn")
+  model.learn(total_timesteps=75000,tb_log_name="75k")
 
   model.save("deepq_carla")
 
@@ -62,10 +62,15 @@ def main():
   model = DQN.load("deepq_carla")
 
   obs = env.reset()
-  while True:
-    action, _states = model.predict(obs)
-    obs, rewards, dones, info = env.step(action)
-    env.render()
+
+  for i in range(100):
+    while True:
+      action, _states = model.predict(obs)
+      obs, rewards, dones, info = env.step(action)
+      if dones:
+        obs = env.reset()
+        break
+    # env.render()
 
 
 if __name__ == '__main__':

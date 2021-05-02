@@ -55,6 +55,7 @@ class CarlaEnv(gym.Env):
     self.pedal_pid.output_limits = (-1,1)
     self.rl_speed = 0.0
     self.pedal_pid.setpoint = 0.0
+    self.dist_to_lead = -1
     # Destination
     if params['task_mode'] == 'acc_1':
       self.dests = [[592.1,244.7,0]] # stopping condition in Town 06
@@ -479,6 +480,7 @@ class CarlaEnv(gym.Env):
           lead_vehicle = self.vehicle_hazards[i]
     else:
       dist_to_lead = -1
+    self.dist_to_lead = dist_to_lead
 
     if lead_vehicle is not None:
       lead_v = lead_vehicle.get_velocity()
@@ -558,8 +560,13 @@ class CarlaEnv(gym.Env):
     # cost for idling 
     r_idle = -1*self.idle_timesteps
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  + r_idle + 12*r_speed 
-    print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 12*r_speed) )
+    # cost for too close following distance:
+    r_space = 0 
+    if self.dist_to_lead > 0 and self.dist_to_lead <= 45.0:
+      r_space = -(45.0 - self.dist_to_lead)*15
+
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  + r_idle + 12*r_speed  + r_space
+    print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f] [too close %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 12*r_speed , r_space) )
     return r
 
   def _terminal(self):
