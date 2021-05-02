@@ -558,8 +558,8 @@ class CarlaEnv(gym.Env):
     # cost for idling 
     r_idle = -1*self.idle_timesteps
 
-    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  + r_idle + 10*r_speed 
-    print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 10*r_speed) )
+    r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  + r_idle + 12*r_speed 
+    print('reward [collision %.2f] [distance %.2f] [overspeed %.2f] [underspeed %.2f] [idle %f] [speed mismatch %.2f]' %  (200*r_collision , 1*lspeed_lon , 10*r_fast , 5*r_slow , r_idle , 12*r_speed) )
     return r
 
   def _terminal(self):
