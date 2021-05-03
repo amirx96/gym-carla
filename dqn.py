@@ -10,6 +10,8 @@ from collections import namedtuple
 from stable_baselines import DQN
 from stable_baselines.common.evaluation import evaluate_policy
 from stable_baselines.deepq.policies import LnCnnPolicy
+from stable_baselines.common.callbacks import CheckpointCallback
+
 
 def main():
   # parameters for the gym_carla environment
@@ -51,9 +53,12 @@ def main():
   env = gym.make('carla-v0', params=params)
   #check_env(env)
   obs = env.reset()
+  checkpoint_callback = CheckpointCallback(save_freq=5000, save_path='./dqn_checkpoint/',
+                                         name_prefix='dqn_check')
 
+  #model = DQN.load("./dqn_checkpoint/dqn_check_200_steps.zip",env=env,tensorboard_log="./dqn)
   model = DQN('LnMlpPolicy', env, learning_rate=1e-3, prioritized_replay=True, verbose=1,tensorboard_log="./dqn")
-  model.learn(total_timesteps=35000,tb_log_name="75k")
+  model.learn(total_timesteps=35000,tb_log_name="35k-with_checkpoint",callback=checkpoint_callback)
 
   model.save("deepq_carla")
 

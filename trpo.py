@@ -10,6 +10,7 @@ from collections import namedtuple
 from collections import deque
 from stable_baselines.common.policies import MlpPolicy
 from stable_baselines import TRPO
+from stable_baselines.common.callbacks import CheckpointCallback
 
 from stable_baselines.common.env_checker import check_env
 
@@ -53,9 +54,12 @@ def main():
   env = gym.make('carla-v0', params=params)
   # check_env(env)
   obs = env.reset()
+  checkpoint_callback = CheckpointCallback(save_freq=5000, save_path='./trpo_checkpoint/',
+                                          name_prefix='trpo_check')
 
+  #model = DQN.load("./trpo_checkpoint/trpo_check_200_steps.zip",env=env,tensorboard_log="./trpo)
   model = TRPO(MlpPolicy, env, verbose=1, tensorboard_log="./trpo")
-  model.learn(total_timesteps=25000, tb_log_name="first_run")
+  model.learn(total_timesteps=35000, tb_log_name="35k-with-checkoint",callback=checkpoint_callback)
   model.save("trpo_carla")
 
   del model # remove to demonstrate saving and loading
