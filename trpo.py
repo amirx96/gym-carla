@@ -67,10 +67,13 @@ def main():
   model = TRPO.load("trpo_carla")
 
   obs = env.reset()
-  while True:
+  for i in range(100):
+    while True:
       action, _states = model.predict(obs)
       obs, rewards, dones, info = env.step(action)
-      #env.render()
+      if dones:
+        obs = env.reset()
+        break
 
 
 if __name__ == '__main__':
