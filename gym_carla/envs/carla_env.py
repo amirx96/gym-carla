@@ -48,7 +48,7 @@ class CarlaEnv(gym.Env):
     self.use_rgb_camera = params['RGB_cam']
     self.traffic_vehicles = []
     #self.discrete_acc = [-1,-0.5,0.0,0.5,1.0] # discrete actions for throttle
-    self.discrete_vel = [-1.0, 0.0, 1.0] # discrete actions for velocity
+    self.discrete_vel = [-5.0, -1.0, 0.0, 1.0, 5.0] # discrete actions for velocity
     self.discrete_actions = params['discrete'] # boolean to use discrete or continoius action space
     self.cur_action = None
     self.pedal_pid = PID(0.7,0.01,0.0)
@@ -68,7 +68,7 @@ class CarlaEnv(gym.Env):
     #self.action_space = spaces.Discrete(len(self.discrete_acc))
 
     if self.discrete_actions:
-      self.action_space = spaces.Discrete(3) # slow down -1 m/s, do nothing, speed up 1 m/s
+      self.action_space = spaces.Discrete(5) # slow down -5, slowdown -1 m/s, do nothing, speed up 1 m/s
     else:
       self.action_space = spaces.Box( np.array([0.0]),np.array([30.0])) # speed is continous from 0 m.s to 30 m.s
     self.observation_space = spaces.Box(np.array([0, 0, -1.0]), np.array([40, 40, 100]), dtype=np.float32)
@@ -142,7 +142,9 @@ class CarlaEnv(gym.Env):
 
 
     # Spawn vehicles in same lane as ego vehicle and ahead
-    ego_vehicle_traffic_spawns = get_spawn_points_for_traffic(40,[-7,-6,-5,-4],self.map,self.number_of_vehicles)
+    ego_vehicle_traffic_spawns_1 = get_spawn_points_for_traffic(40,[-7,-6,-5,-4],self.map,self.number_of_vehicles)
+    ego_vehicle_traffic_spawns_2 = get_spawn_points_for_traffic(39,[-7,-6,-5,-4],self.map,self.number_of_vehicles,start=15)
+    ego_vehicle_traffic_spawns = ego_vehicle_traffic_spawns_1 + ego_vehicle_traffic_spawns_2
     random.shuffle(ego_vehicle_traffic_spawns)
     count = self.number_of_vehicles
     if count > 0:
@@ -362,7 +364,7 @@ class CarlaEnv(gym.Env):
       # self.client.apply_batch_sync(batch) # not how this is supposed to be done but oh well
       #vehicle.enable_constant_velocity(np.random.uniform(low=18.0,high=30.0))
       vehicle.set_autopilot(True,self.tm_port)
-      #self.tm.auto_lane_change(vehicle,False)
+      self.tm.auto_lane_change(vehicle,False)
       high = np.random.uniform(low=-20,high=0)
       low = np.random.uniform(low=-20,high=0)
 
@@ -562,7 +564,7 @@ class CarlaEnv(gym.Env):
 
     # cost for too close following distance:
     r_space = 0 
-    if self.dist_to_lead > 0 and self.dist_to_lead <= 45.0:
+    if self.dist_to_lead > 0 and self.dist_to_lead <= 35.0:
       r_space = -(45.0 - self.dist_to_lead)*15
 
     r = 200*r_collision + 1*lspeed_lon + 10*r_fast + 5*r_slow  + r_idle + 12*r_speed  + r_space

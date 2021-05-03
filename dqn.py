@@ -14,7 +14,7 @@ from stable_baselines.deepq.policies import LnCnnPolicy
 def main():
   # parameters for the gym_carla environment
   params = {
-    'number_of_vehicles': 8,
+    'number_of_vehicles': 25,
     'number_of_walkers': 0,
     'display_size': 256,  # screen size of bird-eye render
     'max_past_step': 1,  # the number of past steps to draw
@@ -53,7 +53,7 @@ def main():
   obs = env.reset()
 
   model = DQN('LnMlpPolicy', env, learning_rate=1e-3, prioritized_replay=True, verbose=1,tensorboard_log="./dqn")
-  model.learn(total_timesteps=75000,tb_log_name="75k")
+  model.learn(total_timesteps=35000,tb_log_name="75k")
 
   model.save("deepq_carla")
 
